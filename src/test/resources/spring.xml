@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:context="http://www.springframework.org/schema/context"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+	http://www.springframework.org/schema/beans/spring-beans.xsd
+    http://www.springframework.org/schema/context
+    http://www.springframework.org/schema/context/spring-context.xsd"
+       default-lazy-init="false">
+
+    <context:component-scan base-package="com.alone.dts">
+        <context:exclude-filter type="annotation" expression="org.springframework.stereotype.Controller" />
+    </context:component-scan>
+
+    <bean id="props" class="org.springframework.beans.factory.config.PropertyPlaceholderConfigurer">
+        <property name="locations">
+            <list>
+                <value>classpath*:*.properties</value>
+            </list>
+        </property>
+        <property name="ignoreUnresolvablePlaceholders" value="true" />
+        <property name="ignoreResourceNotFound" value="true" />
+    </bean>
+
+    <bean id="zookeeper" class="com.gary.trc.zookeeper.ZookeeperFactory">
+        <property name="hosts" value="${zk.hosts}" />
+        <property name="connectionTimeout" value="3000" />
+        <property name="sessionTimeout" value="3000" />
+        <property name="singleton" value="true" />
+    </bean>
+    <bean id="zookeeperRegister" class="com.gary.trc.zookeeper.ZookeeperThriftServerRegister">
+        <property name="zkClient" ref="zookeeper"/>
+    </bean>
+    <bean id="factory" class="com.gary.trc.ThriftServiceServerFactory">
+        <constructor-arg index="0" value="org.apache.thrift.server.TThreadedSelectorServer"/>
+        <constructor-arg index="1" value="org.apache.thrift.transport.TNonblockingServerSocket"/>
+        <property name="transportFactory">
+            <bean class="org.apache.thrift.transport.TFramedTransport.Factory"/>
+        </property>
+        <property name="protocolFactory">
+            <bean class="org.apache.thrift.protocol.TCompactProtocol.Factory"/>
+        </property>
+        <property name="serverRegister" ref="zookeeperRegister"/>
+    </bean>
+    <bean class="com.gary.trc.ThriftServiceClientFactory">
+        <constructor-arg name="thriftServerProvider">
+            <bean class="com.gary.trc.zookeeper.ZookeeperThriftServerProvider">
+                <constructor-arg name="zkClient" ref="zookeeper"/>
+            </bean>
+        </constructor-arg>
+        <constructor-arg name="invokerFactory">
+            <bean class="com.gary.trc.invoker.factory.PoolInvokerFactory">
+                <constructor-arg name="config">
+                    <bean class="com.gary.trc.bean.PoolInvokerConfig">
+                        <property name="transportClass" value="org.apache.thrift.transport.TFramedTransport"/>
+                        <property name="protocolClass" value="org.apache.thrift.protocol.TCompactProtocol"/>
+                    </bean>
+                </constructor-arg>
+            </bean>
+        </constructor-arg>
+    </bean>
+
+    <bean class="com.alone.dts.tracker.service.TaskTrackerService">
+        <property name="factory" ref="factory"/>
+        <property name="nodeGroup" value="test"/>
+    </bean>
+</beans>
